@@ -17,10 +17,10 @@ def select_audio_file():
     )
     return file_path
 
-def save_as_flac(input_file, output_path):
-    """Saves the separated audio file as FLAC using pydub."""
+def save_audio(input_file, output_path, format):
+    """Saves the separated audio file in the specified format using pydub."""
     audio_segment = AudioSegment.from_file(input_file)
-    audio_segment.export(output_path, format="flac")
+    audio_segment.export(output_path, format=format)
 
 def choose_model():
     """Allows the user to select a model numerically."""
@@ -64,6 +64,12 @@ def separate_audio(input_file, base_output_folder="separated_audio"):
         print(f"Error during Demucs execution: {e}")
         return
     
+    # Detect input format and use same for output
+    input_ext = os.path.splitext(input_file)[1].lower().lstrip('.')
+    # Map common extensions to pydub format names
+    format_map = {'mp3': 'mp3', 'wav': 'wav', 'flac': 'flac', 'm4a': 'mp4', 'aac': 'aac', 'ogg': 'ogg', 'wma': 'wma'}
+    output_format = format_map.get(input_ext, 'wav')  # Default to wav if unknown
+    
     # File name without extension
     track_name = os.path.splitext(os.path.basename(input_file))[0]
     demucs_output_folder = os.path.join(base_output_folder, model, track_name)
@@ -79,15 +85,15 @@ def separate_audio(input_file, base_output_folder="separated_audio"):
     
     # Check if the separated files exist
     if os.path.exists(vocals_path) and os.path.exists(no_vocals_path):
-        # Create the output file names
-        vocals_output_path = os.path.join(vocals_folder, f"{track_name}_vocals.flac")
-        no_vocals_output_path = os.path.join(no_vocals_folder, f"{track_name}_no_vocals.flac")
+        # Create the output file names with same format as input
+        vocals_output_path = os.path.join(vocals_folder, f"{track_name}_vocals.{output_format}")
+        no_vocals_output_path = os.path.join(no_vocals_folder, f"{track_name}_no_vocals.{output_format}")
         
-        # Convert and save the separated files as FLAC
-        save_as_flac(vocals_path, vocals_output_path)
-        save_as_flac(no_vocals_path, no_vocals_output_path)
+        # Convert and save the separated files in detected format
+        save_audio(vocals_path, vocals_output_path, output_format)
+        save_audio(no_vocals_path, no_vocals_output_path, output_format)
         
-        print(f"FLAC files saved:")
+        print(f"Audio files saved ({output_format.upper()} format):")
         print(f"- Vocals: {vocals_output_path}")
         print(f"- No Vocals: {no_vocals_output_path}")
         
