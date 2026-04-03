@@ -17,10 +17,10 @@ def select_audio_file():
     )
     return file_path
 
-def save_as_mp3(input_file, output_path):
-    """Saves the separated audio file as MP3 using pydub."""
+def save_as_flac(input_file, output_path):
+    """Saves the separated audio file as FLAC using pydub."""
     audio_segment = AudioSegment.from_file(input_file)
-    audio_segment.export(output_path, format="mp3")
+    audio_segment.export(output_path, format="flac")
 
 def choose_model():
     """Allows the user to select a model numerically."""
@@ -80,14 +80,14 @@ def separate_audio(input_file, base_output_folder="separated_audio"):
     # Check if the separated files exist
     if os.path.exists(vocals_path) and os.path.exists(no_vocals_path):
         # Create the output file names
-        vocals_output_path = os.path.join(vocals_folder, f"{track_name}_vocals.mp3")
-        no_vocals_output_path = os.path.join(no_vocals_folder, f"{track_name}_no_vocals.mp3")
+        vocals_output_path = os.path.join(vocals_folder, f"{track_name}_vocals.flac")
+        no_vocals_output_path = os.path.join(no_vocals_folder, f"{track_name}_no_vocals.flac")
         
-        # Convert and save the separated files as MP3
-        save_as_mp3(vocals_path, vocals_output_path)
-        save_as_mp3(no_vocals_path, no_vocals_output_path)
+        # Convert and save the separated files as FLAC
+        save_as_flac(vocals_path, vocals_output_path)
+        save_as_flac(no_vocals_path, no_vocals_output_path)
         
-        print(f"MP3 files saved:")
+        print(f"FLAC files saved:")
         print(f"- Vocals: {vocals_output_path}")
         print(f"- No Vocals: {no_vocals_output_path}")
         
