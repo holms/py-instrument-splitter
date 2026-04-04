@@ -54,7 +54,8 @@ def choose_stems(available_stems):
     print("2 - Extract only VOCALS (and instrumental)")
     print("3 - Extract only DRUMS")
     print("4 - Extract only BASS")
-    print("5 - Custom selection (comma-separated, e.g., drums,bass)")
+    print("5 - Extract only GUITAR")
+    print("6 - Custom selection (comma-separated, e.g., drums,bass,guitar)")
     
     while True:
         choice = input("\nEnter option (default: 1): ").strip()
@@ -64,10 +65,20 @@ def choose_stems(available_stems):
         elif choice == "2":
             return ["vocals"]
         elif choice == "3":
-            return ["drums"]
+            if "drums" in available_stems:
+                return ["drums"]
+            else:
+                print("Drums not available with this model. Try htdemucs or mdx models.")
+                continue
         elif choice == "4":
             return ["bass"]
         elif choice == "5":
+            if "guitar" in available_stems:
+                return ["guitar"]
+            else:
+                print("Guitar only available with htdemucs_6s model (option 2).")
+                continue
+        elif choice == "6":
             custom = input(f"Enter stems to extract (available: {', '.join(available_stems)}): ").strip().lower()
             selected = [s.strip() for s in custom.split(",")]
             # Validate
