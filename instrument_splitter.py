@@ -6,6 +6,7 @@ import torch
 import shutil
 import demucs.api
 import sys
+from tqdm import tqdm
 
 def select_audio_file():
     """Opens a window to select the audio file."""
@@ -88,6 +89,18 @@ def get_available_stems(model):
         # Standard 4-stem models
         return ["drums", "bass", "other", "vocals"]
 
+def progress_callback(progress, pbar):
+    """Progress callback for demucs separation."""
+    if progress['state'] == 'segment':
+        current = progress.get('segment_offset', 0)
+        total = progress.get('audio_length', 1)
+        pbar.n = int(current)
+        pbar.total = int(total)
+        pbar.set_description(f"Processing {current:.1f}s/{total:.1f}s")
+        pbar.refresh()
+    elif progress['state'] == 'load':
+        print(f"Loading model: {progress.get('model_name', 'unknown')}")
+
 def separate_audio(input_file, base_output_folder="separated_audio"):
     """
     Separates instruments from an audio file using Demucs API and saves the separated tracks.
@@ -110,12 +123,23 @@ def separate_audio(input_file, base_output_folder="separated_audio"):
     print(f"Selected stems: {', '.join(selected_stems)}")
     
     try:
-        # Initialize Separator with model and device
-        separator = demucs.api.Separator(model=model, device=device)
+        # Create progress bar
+        pbar = tqdm(total=100, unit='s', desc="Loading")
+        
+        # Initialize Separator with model, device, and callback
+        separator = demucs.api.Separator(
+            model=model, 
+            device=device,
+            callback=lambda p: progress_callback(p, pbar)
+        )
+        
+        pbar.set_description("Processing")
         
         # Separate audio
         print(f"Processing: {os.path.basename(input_file)}")
         origin, separated = separator.separate_audio_file(input_file)
+        
+        pbar.close()
         
     except Exception as e:
         print(f"Error during separation: {e}")
