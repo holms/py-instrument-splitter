@@ -1,4 +1,4 @@
-demucs==4.0.1
+demucs @ git+https://github.com/facebookresearch/demucs.git@main
 pydub==0.25.1
 numpy<2
 soundfile==0.13.1

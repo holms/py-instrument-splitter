@@ -4,7 +4,7 @@ from tkinter import filedialog
 from pydub import AudioSegment
 import torch
 import shutil
-from demucs.api import Separator, save_audio as demucs_save_audio
+import demucs.api
 import sys
 
 def select_audio_file():
@@ -88,22 +88,6 @@ def get_available_stems(model):
         # Standard 4-stem models
         return ["drums", "bass", "other", "vocals"]
 
-def progress_callback(progress_info):
-    """Custom progress callback to format progress display."""
-    state = progress_info.get('state', '')
-    if state == 'load':
-        print(f"Loading model... ({progress_info.get('model_name', 'unknown')})")
-    elif state == 'segment':
-        current = progress_info.get('segment_offset', 0)
-        total = progress_info.get('audio_length', 1)
-        # Format numbers to avoid floating-point precision issues
-        current_fmt = f"{current:.1f}"
-        total_fmt = f"{total:.1f}"
-        percent = (current / total) * 100 if total > 0 else 0
-        print(f"\rProcessing: {current_fmt}/{total_fmt}s ({percent:.1f}%)", end='', flush=True)
-    elif state == 'end':
-        print("\nSeparation complete!")
-
 def separate_audio(input_file, base_output_folder="separated_audio"):
     """
     Separates instruments from an audio file using Demucs API and saves the separated tracks.
@@ -127,16 +111,11 @@ def separate_audio(input_file, base_output_folder="separated_audio"):
     
     try:
         # Initialize Separator with model and device
-        separator = Separator(
-            model=model,
-            device=device,
-            progress=True,
-            callback=progress_callback
-        )
+        separator = demucs.api.Separator(model=model, device=device)
         
         # Separate audio
-        print(f"Loading and processing: {os.path.basename(input_file)}")
-        wav, sr = separator.separate_audio_file(input_file)
+        print(f"Processing: {os.path.basename(input_file)}")
+        origin, separated = separator.separate_audio_file(input_file)
         
     except Exception as e:
         print(f"Error during separation: {e}")
@@ -146,47 +125,44 @@ def separate_audio(input_file, base_output_folder="separated_audio"):
     
     # Process results
     track_name = os.path.splitext(os.path.basename(input_file))[0]
-    # Find all generated stems from the wav dict returned by demucs
-    generated_files = {}
     
-    # wav is a dict with stem names as keys
-    for stem in available_stems:
-        if stem in wav:
-            # Save to temp file first
-            temp_wav_path = os.path.join(base_output_folder, f"{stem}_temp.wav")
-            demucs_save_audio(wav[stem], temp_wav_path, sr)
-            generated_files[stem] = temp_wav_path
-    
-    if not generated_files:
-        print("Error: no separated files were found.")
-        return
-    
-    # Create output folders for selected stems
+    # Create output folders and save files
     output_paths = {}
-    for stem in selected_stems:
-        if stem in generated_files:
-            stem_folder = os.path.join(base_output_folder, stem)
-            os.makedirs(stem_folder, exist_ok=True)
-            output_path = os.path.join(stem_folder, f"{track_name}_{stem}.{output_format}")
-            save_audio(generated_files[stem], output_path, output_format)
-            output_paths[stem] = output_path
+    for file, sources in separated:
+        for stem, source in sources.items():
+            if stem in selected_stems:
+                stem_folder = os.path.join(base_output_folder, stem)
+                os.makedirs(stem_folder, exist_ok=True)
+                output_path = os.path.join(stem_folder, f"{track_name}_{stem}.{output_format}")
+                
+                # Save as wav first using demucs save_audio
+                temp_wav = os.path.join(base_output_folder, f"{stem}_temp.wav")
+                demucs.api.save_audio(source, temp_wav, samplerate=separator.samplerate)
+                
+                # Convert to desired format using pydub
+                save_audio(temp_wav, output_path, output_format)
+                output_paths[stem] = output_path
+                
+                # Cleanup temp
+                os.remove(temp_wav)
     
     # Also create "no_vocals" from "other" if vocals was selected alone
-    if len(selected_stems) == 1 and selected_stems[0] == "vocals" and "other" in generated_files:
-        no_vocals_folder = os.path.join(base_output_folder, "no_vocals")
-        os.makedirs(no_vocals_folder, exist_ok=True)
-        no_vocals_path = os.path.join(no_vocals_folder, f"{track_name}_no_vocals.{output_format}")
-        save_audio(generated_files["other"], no_vocals_path, output_format)
-        output_paths["no_vocals"] = no_vocals_path
+    if len(selected_stems) == 1 and selected_stems[0] == "vocals":
+        for file, sources in separated:
+            if "other" in sources:
+                no_vocals_folder = os.path.join(base_output_folder, "no_vocals")
+                os.makedirs(no_vocals_folder, exist_ok=True)
+                no_vocals_path = os.path.join(no_vocals_folder, f"{track_name}_no_vocals.{output_format}")
+                
+                temp_wav = os.path.join(base_output_folder, "other_temp.wav")
+                demucs.api.save_audio(sources["other"], temp_wav, samplerate=separator.samplerate)
+                save_audio(temp_wav, no_vocals_path, output_format)
+                os.remove(temp_wav)
+                output_paths["no_vocals"] = no_vocals_path
     
     print(f"\nAudio files saved ({output_format.upper()} format):")
     for stem, path in output_paths.items():
         print(f"- {stem.capitalize()}: {path}")
-    
-    # Cleanup intermediate files
-    for wav_path in generated_files.values():
-        if os.path.exists(wav_path):
-            os.remove(wav_path)
     
     print("\nSeparation complete!")
 
